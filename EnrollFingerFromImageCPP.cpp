@@ -15,7 +15,7 @@
 #endif
 #include <iostream>
 #include <fstream>
-#include <string>
+
 using namespace std;
 using namespace Neurotec;
 using namespace Neurotec::Licensing;
@@ -23,11 +23,12 @@ using namespace Neurotec::Biometrics;
 using namespace Neurotec::Biometrics::Client;
 using namespace Neurotec::Biometrics::Standards;
 using namespace Neurotec::IO;
+using namespace Neurotec::Images;
 
 const NChar title[] = N_T("EnrollFingerFromImage");
 const NChar description[] = N_T("Demonstrates fingerprint feature extraction from image.");
-const NChar version[] = N_T("12.2.0.0");
-const NChar copyright[] = N_T("Copyright (C) 2016-2021 Neurotechnology");
+const NChar version[] = N_T("12.3.0.0");
+const NChar copyright[] = N_T("Copyright (C) 2016-2022 Neurotechnology");
 
 int usage()
 {
@@ -105,30 +106,42 @@ int main(int argc, NChar **argv)
 
 		NSubject subject;
 		NFinger finger;
-		finger.SetFileName(argv[1]);
-		subject.GetFingers().Add(finger);
 
+		NImage image = NImage::FromFile(argv[1]);
+		finger.SetImage(image);
+		subject.GetFingers().Add(finger);
 		NBiometricStatus status = biometricClient.CreateTemplate(subject);
+
 		if (status == nbsOk)
 		{
-			ofstream outfile;
-			outfile.open("data.txt");
+			cout << "Template extracted: " << endl;
+
+			NFingerExaminer examiner;
+			examiner.InitializeFromOriginalImage(biometricClient, image);
+			NTemplate ntemplate = subject.GetTemplate();
+			examiner.FindSingularPoints(ntemplate.GetFingers().GetRecords()[0]);
+
+			cout << "Singular points extracted extracted: " << endl;
+			
+			ofstream outfile("data.txt");
 			NFloat angle;
 			NUShort x;
 			NUShort y;
 			NByte quality;
 			NByte type;
 			NInt num(subject.GetTemplate().GetFingers().GetRecords()[0].GetMinutiae().GetCount());
+			outfile << subject.GetTemplate().GetFingers().GetRecords()[0].GetCores()[0].X << " " << subject.GetTemplate().GetFingers().GetRecords()[0].GetCores()[0].Y << " " << subject.GetTemplate().GetFingers().GetRecords()[0].GetCores()[0].Angle << endl;
+			outfile << subject.GetTemplate().GetFingers().GetRecords()[0].GetDeltas()[0].X << " " << subject.GetTemplate().GetFingers().GetRecords()[0].GetDeltas()[0].Y << endl;
 			for (int i = 0;i < num;i++) {
 				angle = NBiometricTypes::AngleToDegrees(subject.GetTemplate().GetFingers().GetRecords()[0].GetMinutiae()[i].Angle);
 				type = subject.GetTemplate().GetFingers().GetRecords()[0].GetMinutiae()[i].Type;
 				quality = subject.GetTemplate().GetFingers().GetRecords()[0].GetMinutiae()[i].Quality;
 				x = subject.GetTemplate().GetFingers().GetRecords()[0].GetMinutiae()[i].X;
 				y = subject.GetTemplate().GetFingers().GetRecords()[0].GetMinutiae()[i].Y;
-				outfile << x << " " << y <<" " << angle <<" " << type<<" " << quality << endl;
+				outfile << x << " " << y << " " << angle << " " << type << " " << quality << endl;
 			}
 			outfile.close();
-			cout << "Template extracted: " << endl;
+
 			if (standard == bsIso)
 			{
 				cout << "ISO" << endl;
@@ -149,10 +162,8 @@ int main(int argc, NChar **argv)
 		else
 		{
 			cout << "Extraction failed: " << NEnum::ToString(NBiometricTypes::NBiometricStatusNativeTypeOf(), status) << endl;
-
 		}
 	}
-
 	catch (NError& ex)
 	{
 		return LastError(ex);
@@ -161,3 +172,4 @@ int main(int argc, NChar **argv)
 	OnExit();
 	return 0;
 }
+
